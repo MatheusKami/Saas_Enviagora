@@ -1,0 +1,67 @@
+.col-md-6 {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    position: relative;
+}
+
+/* Container do conteúdo */
+.col-md-6::before {
+    content: "";
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at top right, rgba(93, 202, 165, 0.08), transparent 60%);
+    pointer-events: none;
+}
+
+/* Card central */
+.login-switch {
+    position: relative;
+    display: flex;
+    gap: 6px;
+    background: #f1f5f9;
+    padding: 6px;
+    border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+}
+
+/* Botões */
+.login-switch a {
+    text-decoration: none;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #64748b;
+    transition: all 0.3s ease;
+}
+
+/* Hover */
+.login-switch a:hover {
+    color: #0f172a;
+}
+
+/* Ativo */
+.login-switch a.active {
+    background: white;
+    color: #0f172a;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* Responsivo */
+@media (max-width: 900px) {
+    .page {
+        flex-direction: column;
+    }
+
+    .left-panel {
+        display: none;
+    }
+
+    .col-md-6 {
+        min-height: 100vh;
+    }
+}
