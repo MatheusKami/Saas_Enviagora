@@ -1,0 +1,1 @@
+[paste full GUIA content here - but I'll summarize for now, actually in real would paste]
