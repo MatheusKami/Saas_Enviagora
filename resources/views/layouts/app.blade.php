@@ -15,12 +15,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
     <link rel="stylesheet" href="css/style.css">
 
-    <!-- Vite -->
+    <!-- Vite (já inclui o Alpine via app.js) -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
-
-    <!-- Alpine.js -->
-    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-
 
     @stack('styles')
 </head>

@@ -50,10 +50,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // ── Chat — Assistente de RH ───────────────────────────────
-    Route::prefix('chat')->name('chat.')->group(function () {
-        Route::get('/',       [ChatController::class, 'index'])->name('index');
-        Route::post('/send',  [ChatController::class, 'send'])->name('send');
-        Route::post('/clear', [ChatController::class, 'clear'])->name('clear');
+  
+    
+    Route::middleware(['auth', 'verified'])->group(function () {
+
+        Route::get('/chat',         [ChatController::class, 'index'])->name('chat.index');
+        Route::post('/chat/send',   [ChatController::class, 'send'])->name('chat.send');
+        Route::post('/chat/clear',  [ChatController::class, 'clear'])->name('chat.clear');
+
     });
 
     // ── Onboarding — cadastro inicial da empresa ──────────────
