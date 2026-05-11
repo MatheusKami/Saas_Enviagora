@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('Minha Empresa') }}
+            {{ __('Configurações da Conta e Empresa') }}
         </h2>
     </x-slot>
 
@@ -10,11 +10,20 @@
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6 space-y-10">
 
-                    {{-- Dados básicos da empresa --}}
-                    @include('empresa.partials.update-empresa-information-form', ['company' => $company])
+                    {{-- Dados do Usuário --}}
+                    @include('profile.partials.update-profile-information-form')
 
-                    {{-- Perfil e cultura --}}
-                    @include('empresa.partials.update-empresa-cultura-form', ['company' => $company])
+                    {{-- Dados da Empresa --}}
+                    @if (isset($company) && $company)
+                        @include('update-empresa-information-form', ['company' => $company])
+
+                        {{-- Perfil e cultura --}}
+                        @include('update-empresa-cultura-form', ['company' => $company])
+                    @else
+                        <div class="p-4 bg-yellow-100 text-yellow-700 rounded">
+                            Cadastre sua empresa no onboarding primeiro.
+                        </div>
+                    @endif
 
                 </div>
             </div>

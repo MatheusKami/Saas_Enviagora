@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Company;
+use Illuminate\Http\RedirectResponse;
 
 class EmpresaController extends Controller
 {
@@ -24,7 +25,7 @@ class EmpresaController extends Controller
                              ->with('info', 'Cadastre sua empresa primeiro.');
         }
 
-        return view('empresa.edit', compact('company'));
+        return redirect()->route('profile.edit');
     }
 
     // ─────────────────────────────────────────────────────────
@@ -65,7 +66,7 @@ class EmpresaController extends Controller
 
         return response()->json([
             'success'  => true,
-            'redirect' => route('editar_empresa'),
+            'redirect' => route('profile.edit'),
         ]);
     }
 
@@ -94,7 +95,7 @@ class EmpresaController extends Controller
 
         return response()->json([
             'success'  => true,
-            'redirect' => route('editar_empresa'),
+            'redirect' => route('profile.edit'),
         ]);
     }
 }
