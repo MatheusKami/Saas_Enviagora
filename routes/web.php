@@ -34,13 +34,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // ── Configurações (alias para profile/edit) ────────────────
+    // === ROTA DE CONFIGURAÇÕES (edição de usuário + empresa) ===
     Route::get('/configurar', function () {
-        $company = auth()->user()->company;   // ou auth()->user()->company()->first()
+        $user = auth()->user();
+        $company = $user->company ?? null;   // se o relationship for outro nome (ex: empresa), troque aqui
 
-        // Se o usuário pode não ter empresa, use:
-        // $company = auth()->user()->company ?? null;
+        return view('profile.edit', compact('user', 'company'));
+    })->middleware(['auth', 'verified'])->name('configuracoes.index');
 
-        return view('profile.edit', compact('company'));
     })->name('configuracoes.index');
     // ── Vagas ─────────────────────────────────────────────────
     Route::prefix('vagas')->name('vagas.')->group(function () {

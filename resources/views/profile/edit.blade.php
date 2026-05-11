@@ -11,7 +11,12 @@
                 <div class="p-6 space-y-10">
 
                     {{-- Dados do Usuário --}}
+                    {{-- Formulário de dados do usuário --}}
                     @include('profile.partials.update-profile-information-form')
+
+                    {{-- Formulários da empresa (os que você já tinha) --}}
+                    @include('empresa.partials.update-company-information-form', ['company' => $company])
+                    @include('empresa.partials.update-company-culture-form', ['company' => $company])
 
                     {{-- Dados da Empresa --}}
                     @if (isset($company) && $company)
