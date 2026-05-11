@@ -11,19 +11,12 @@
                 <div class="p-6 space-y-10">
 
                     {{-- Dados do Usuário --}}
-                    {{-- Formulário de dados do usuário --}}
                     @include('profile.partials.update-profile-information-form')
 
-                    {{-- Formulários da empresa (os que você já tinha) --}}
-                    @include('empresa.partials.update-company-information-form', ['company' => $company])
-                    @include('empresa.partials.update-company-culture-form', ['company' => $company])
-
-                    {{-- Dados da Empresa --}}
+                    {{-- Formulários da Empresa --}}
                     @if (isset($company) && $company)
-                        @include('update-empresa-information-form', ['company' => $company])
-
-                        {{-- Perfil e cultura --}}
-                        @include('update-empresa-cultura-form', ['company' => $company])
+                        @include('profile.partials.update-empresa-information-form', ['company' => $company])
+                        @include('profile.partials.update-empresa-cultura-form', ['company' => $company])
                     @else
                         <div class="p-4 bg-yellow-100 text-yellow-700 rounded">
                             Cadastre sua empresa no onboarding primeiro.
