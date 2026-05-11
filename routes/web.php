@@ -35,9 +35,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // ── Configurações (alias para profile/edit) ────────────────
     Route::get('/configurar', function () {
-        return view('profile.edit');
-    })->name('configuracoes.index');
+        $company = auth()->user()->company;   // ou auth()->user()->company()->first()
 
+        // Se o usuário pode não ter empresa, use:
+        // $company = auth()->user()->company ?? null;
+
+        return view('profile.edit', compact('company'));
+    })->name('configuracoes.index');
     // ── Vagas ─────────────────────────────────────────────────
     Route::prefix('vagas')->name('vagas.')->group(function () {
         Route::get('/',            [VagaController::class, 'index'])->name('index');

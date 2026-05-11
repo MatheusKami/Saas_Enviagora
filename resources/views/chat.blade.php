@@ -11,7 +11,7 @@
         /* ── Layout do chat ── */
         .chat-wrap {
             display: flex;
-            height: calc(100vh - 60px - 3.5rem); /* 60px topbar + padding do dash-content */
+            height: calc(100vh - 60px - 3.5rem);
             gap: 0;
             border: 1px solid var(--gray-200);
             border-radius: var(--radius);
@@ -210,6 +210,15 @@
             flex-shrink: 0;
             margin-top: .15rem;
         }
+
+        {{-- ════════════════════════════════════════════════════════
+             BUG 1 CORRIGIDO:
+             O CSS original usava .msg-avatar.ai e .msg-bubble.ai,
+             mas o Alpine e o banco salvam role='assistant'.
+             As classes agora aceitam AMBAS: .assistant e .ai
+             para compatibilidade com histórico antigo no banco.
+        ════════════════════════════════════════════════════════ --}}
+        .msg-avatar.assistant,
         .msg-avatar.ai   { background: var(--blue-600); color: #fff; }
         .msg-avatar.user { background: var(--gray-200); color: var(--gray-700); }
 
@@ -221,6 +230,9 @@
             line-height: 1.65;
             word-break: break-word;
         }
+
+        {{-- Idem: aceita .assistant e .ai --}}
+        .msg-bubble.assistant,
         .msg-bubble.ai {
             background: var(--gray-50);
             border: 1px solid var(--gray-200);
@@ -232,10 +244,11 @@
             color: #fff;
             border-radius: 12px 2px 12px 12px;
         }
-        .msg-bubble p   { margin-bottom: .5rem; }
+        .msg-bubble p            { margin-bottom: .5rem; }
         .msg-bubble p:last-child { margin-bottom: 0; }
-        .msg-bubble strong { font-weight: 600; }
-        .msg-bubble ul, .msg-bubble ol {
+        .msg-bubble strong       { font-weight: 600; }
+        .msg-bubble ul,
+        .msg-bubble ol {
             padding-left: 1.2rem;
             margin: .4rem 0;
         }
@@ -247,7 +260,8 @@
             margin-top: .3rem;
             text-align: right;
         }
-        .msg-row.ai .msg-time { text-align: left; }
+        .msg-row.assistant .msg-time,
+        .msg-row.ai        .msg-time { text-align: left; }
 
         /* Cursor piscante durante streaming */
         .streaming-cursor::after {
@@ -330,8 +344,8 @@
             flex-shrink: 0;
             transition: opacity .15s, transform .1s;
         }
-        .chat-send-btn:hover   { opacity: .88; }
-        .chat-send-btn:active  { transform: scale(.95); }
+        .chat-send-btn:hover    { opacity: .88; }
+        .chat-send-btn:active   { transform: scale(.95); }
         .chat-send-btn:disabled { opacity: .4; cursor: not-allowed; }
 
         .chat-input-hint {
@@ -448,8 +462,22 @@
             {{-- Mensagens --}}
             <div class="chat-messages" id="chat-messages" x-ref="messages">
 
-                {{-- Estado vazio --}}
-                <template x-if="messages.length === 0">
+                {{-- ════════════════════════════════════════════════════════
+                     BUG 2 CORRIGIDO:
+                     O x-if original era: messages.length === 0
+                     Isso escondia o estado vazio assim que o usuário enviava
+                     a mensagem (que entra em 'messages'), mas não exibia as
+                     respostas da IA que vinham via stream — porque o template
+                     do x-for ficava DENTRO do bloco bloqueado pelo x-if.
+
+                     Correção: o estado vazio agora verifica se NÃO há
+                     histórico do banco (hasHistory, definido no init) E
+                     não há mensagens na sessão atual.
+                     O x-for das mensagens dinâmicas está fora e sempre ativo.
+                ════════════════════════════════════════════════════════ --}}
+
+                {{-- Estado vazio: só aparece quando não há nada para mostrar --}}
+                <template x-if="!hasHistory && messages.length === 0">
                     <div class="chat-empty">
                         <i class="ti ti-message-circle"></i>
                         <h3>Como posso ajudar?</h3>
@@ -471,7 +499,8 @@
                     </div>
                 </template>
 
-                {{-- Histórico salvo no banco --}}
+                {{-- ── Histórico salvo no banco (renderizado pelo Blade/PHP) ── --}}
+                {{-- role aqui é 'user' ou 'assistant' — ambos com CSS correto --}}
                 @foreach($history as $msg)
                     <div class="msg-row {{ $msg->role }}">
                         <div class="msg-avatar {{ $msg->role }}">
@@ -488,7 +517,9 @@
                     </div>
                 @endforeach
 
-                {{-- Mensagens da sessão atual (Alpine) --}}
+                {{-- ── Mensagens da sessão atual via Alpine (streaming) ── --}}
+                {{-- Este x-for NUNCA deve ficar dentro de um x-if que ele
+                     próprio possa desativar. Mantido sempre visível. --}}
                 <template x-for="msg in messages" :key="msg.id">
                     <div class="msg-row" :class="msg.role">
                         <div class="msg-avatar" :class="msg.role">
@@ -500,6 +531,7 @@
                             </template>
                         </div>
                         <div>
+                            {{-- role é 'assistant' aqui — CSS agora aceita essa classe --}}
                             <div class="msg-bubble" :class="msg.role">
                                 <span x-html="formatMsg(msg.content)"></span>
                                 <span x-show="msg.streaming" class="streaming-cursor"></span>
@@ -551,10 +583,16 @@
             sidebarOpen: true,
             jobId:       {{ $job ? $job->id : 'null' }},
 
+            // ════════════════════════════════════════════════════════
+            // BUG 2 (continuação):
+            // 'hasHistory' indica se o banco já tinha mensagens ao
+            // carregar a página. Usado no x-if do estado vazio para
+            // não esconder o histórico do banco quando messages==[].
+            // ════════════════════════════════════════════════════════
+            hasHistory: {{ $history->count() > 0 ? 'true' : 'false' }},
+
             init() {
-                // Se já há histórico do banco, não mostra o estado vazio
-                const hasHistory = {{ $history->count() > 0 ? 'true' : 'false' }};
-                if (hasHistory) this.scrollBottom();
+                if (this.hasHistory) this.scrollBottom();
             },
 
             scrollBottom() {
@@ -574,13 +612,13 @@
                 el.style.height = Math.min(el.scrollHeight, 120) + 'px';
             },
 
-            // Formata o texto para exibição (quebras de linha, negrito básico)
+            // Formata o texto para exibição (quebras de linha + markdown básico)
             formatMsg(text) {
                 if (!text) return '';
                 return text
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
+                    .replace(/&/g,  '&amp;')
+                    .replace(/</g,  '&lt;')
+                    .replace(/>/g,  '&gt;')
                     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                     .replace(/\n/g, '<br>');
             },
@@ -594,20 +632,35 @@
                 const text = this.input.trim();
                 if (!text || this.loading) return;
 
-                // Adiciona mensagem do usuário
-                const userMsg = { id: Date.now(), role: 'user', content: text, time: this.now(), streaming: false };
+                // Marca que já há conteúdo (esconde o estado vazio)
+                this.hasHistory = true;
+
+                // Adiciona mensagem do usuário na tela imediatamente
+                const userMsg = {
+                    id:        Date.now(),
+                    role:      'user',
+                    content:   text,
+                    time:      this.now(),
+                    streaming: false,
+                };
                 this.messages.push(userMsg);
                 this.input = '';
 
-                // Reset textarea height
+                // Reset altura do textarea
                 const ta = document.getElementById('chat-input');
-                if (ta) { ta.style.height = 'auto'; }
+                if (ta) ta.style.height = 'auto';
 
                 this.loading = true;
                 this.scrollBottom();
 
-                // Adiciona bubble da IA (vazia, vai preenchendo via stream)
-                const aiMsg = { id: Date.now() + 1, role: 'assistant', content: '', time: this.now(), streaming: true };
+                // Cria bubble da IA vazia — vai sendo preenchida via stream
+                const aiMsg = {
+                    id:        Date.now() + 1,
+                    role:      'assistant',   // CSS agora aceita 'assistant'
+                    content:   '',
+                    time:      this.now(),
+                    streaming: true,
+                };
                 this.messages.push(aiMsg);
                 this.scrollBottom();
 
@@ -615,9 +668,9 @@
                     const res = await fetch('/chat/send', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                            'Accept': 'text/event-stream',
+                            'Content-Type':  'application/json',
+                            'X-CSRF-TOKEN':  document.querySelector('meta[name="csrf-token"]').content,
+                            'Accept':        'text/event-stream',
                         },
                         body: JSON.stringify({
                             message: text,
@@ -625,7 +678,7 @@
                         }),
                     });
 
-                    if (!res.ok) throw new Error('Erro na requisição');
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
                     const reader  = res.body.getReader();
                     const decoder = new TextDecoder();
@@ -636,30 +689,46 @@
                         if (done) break;
 
                         buffer += decoder.decode(value, { stream: true });
+
+                        // Processa linha a linha (SSE usa \n\n como separador)
                         const lines = buffer.split('\n');
-                        buffer = lines.pop(); // guarda linha incompleta
+                        buffer = lines.pop(); // guarda linha incompleta para o próximo chunk
 
                         for (const line of lines) {
                             if (!line.startsWith('data: ')) continue;
+
                             const payload = line.slice(6).trim();
                             if (payload === '[DONE]') break;
 
                             try {
                                 const data = JSON.parse(payload);
+
                                 if (data.error) {
-                                    aiMsg.content  = data.error;
+                                    // Exibe erro retornado pelo servidor na bubble da IA
+                                    aiMsg.content   = data.error;
                                     aiMsg.streaming = false;
+
                                 } else if (data.chunk) {
+                                    // ════════════════════════════════════════════════
+                                    // Aqui é onde o texto da IA aparece na tela.
+                                    // Cada 'chunk' é um pedaço do stream da Anthropic.
+                                    // Concatenamos em aiMsg.content — o Alpine
+                                    // atualiza o DOM reativamente via x-html.
+                                    // ════════════════════════════════════════════════
                                     aiMsg.content += data.chunk;
                                     this.scrollBottom();
                                 }
-                            } catch (_) { /* ignora JSON inválido */ }
+
+                            } catch (_) {
+                                // Ignora linhas com JSON malformado
+                            }
                         }
                     }
 
                 } catch (err) {
                     aiMsg.content = 'Erro ao conectar com o assistente. Verifique sua conexão e tente novamente.';
                 } finally {
+                    // Sempre remove o cursor piscante ao terminar
                     aiMsg.streaming = false;
                     this.loading    = false;
                     this.scrollBottom();
@@ -670,7 +739,7 @@
                 if (!confirm('Limpar todo o histórico desta conversa?')) return;
 
                 await fetch('/chat/clear', {
-                    method: 'POST',
+                    method:  'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
@@ -678,8 +747,10 @@
                     body: JSON.stringify({ job_id: this.jobId }),
                 });
 
-                this.messages = [];
-                // Recarrega para limpar histórico do banco que veio via PHP
+                this.messages   = [];
+                this.hasHistory = false;
+
+                // Recarrega para limpar o histórico do banco que veio via Blade
                 window.location.reload();
             },
         };
