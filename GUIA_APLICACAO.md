@@ -1,1 +1,0 @@
-{{the full content of GUIA_APLICACAO.md}}
