@@ -2,100 +2,91 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Company;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-use App\Models\Company;
-use Illuminate\Http\RedirectResponse;
 
 class EmpresaController extends Controller
 {
-    // ─────────────────────────────────────────────────────────
-    // GET /editar_empresa
-    // Exibe o formulário com os dados atuais da empresa.
-    // Redireciona para o onboarding se o usuário não tem empresa.
-    // ─────────────────────────────────────────────────────────
     public function edit()
     {
-        $user    = Auth::user();
-        $company = Company::find($user->company_id);
+        $user = Auth::user();
+
+        $company = $user->company ?? Company::find($user->company_id);
 
         if (!$company) {
-            return redirect()->route('onboarding')
-                             ->with('info', 'Cadastre sua empresa primeiro.');
+
+            return redirect()
+                ->route('onboarding')
+                ->with('error', 'Complete o onboarding primeiro.');
         }
 
-        return redirect()->route('profile.edit');
+        return view('profile.edit', [
+            'company' => $company,
+            'user' => $user,
+        ]);
     }
 
-    // ─────────────────────────────────────────────────────────
-    // PUT /editar_empresa
-    // Atualiza os dados cadastrais (razão social, cnpj,
-    // endereço, site e logo).
-    // ─────────────────────────────────────────────────────────
     public function updateDados(Request $request)
     {
-        $user    = Auth::user();
-        $company = Company::findOrFail($user->company_id);
+        $user = Auth::user();
+        $company = $user->company ?? Company::find($user->company_id);
 
-        $request->validate([
-            'razao_social'      => 'required|string|max:255',
-            'cnpj'              => 'nullable|string|unique:companies,cnpj,' . $company->id,
-            'endereco_completo' => 'nullable|string',
-            'url_empresa'       => 'nullable|url',
-            'logo'              => 'nullable|image|mimes:jpg,jpeg,png,svg|max:2048',
-        ]);
-
-        $company->fill([
-            'razao_social'      => $request->razao_social,
-            'cnpj'              => $request->cnpj,
-            'endereco_completo' => $request->endereco_completo,
-            'url_empresa'       => $request->url_empresa,
-        ]);
-
-        // Substitui o logo antigo se um novo foi enviado
-        if ($request->hasFile('logo')) {
-            if ($company->logo_url) {
-                Storage::delete(str_replace('/storage/', 'public/', $company->logo_url));
-            }
-            $path = $request->file('logo')->store('logos', 'public');
-            $company->logo_url = Storage::url($path);
+        if (!$company) {
+            return response()->json([
+                'message' => 'Empresa não encontrada.'
+            ], 404);
         }
 
-        $company->save();
+        $validated = $request->validate([
+            'razao_social'      => 'required|string|max:255',
+            'cnpj'              => 'nullable|string|size:18|unique:companies,cnpj,' . $company->id,
+            'url_empresa'       => 'nullable|url|max:255',
+            'endereco_completo' => 'nullable|string|max:500',
+            'logo'              => 'nullable|image|mimes:jpeg,png,jpg,gif,webp,svg|max:5120',
+        ]);
+
+        // Upload logo
+        if ($request->hasFile('logo')) {
+
+            // Remove antiga
+            if ($company->logo_url) {
+
+                $oldPath = str_replace('/storage/', '', $company->logo_url);
+
+                Storage::disk('public')->delete($oldPath);
+            }
+
+            $path = $request->file('logo')->store('companies/logos', 'public');
+
+            // SALVA APENAS O PATH
+            $validated['logo_url'] = $path;
+        }
+
+        $company->update($validated);
 
         return response()->json([
-            'success'  => true,
-            'redirect' => route('profile.edit'),
+            'success' => true,
+            'redirect' => route('editar_empresa'),
+            'logo_url' => $company->logo_url
         ]);
     }
-
-    // ─────────────────────────────────────────────────────────
-    // PUT /editar_empresa/cultura
-    // Atualiza o perfil/ritmo, contexto e valores da empresa.
-    // ─────────────────────────────────────────────────────────
     public function updateCultura(Request $request)
     {
-        $user    = Auth::user();
-        $company = Company::findOrFail($user->company_id);
+        $company = Auth::user()->company ?? Company::find(Auth::user()->company_id);
 
-        $request->validate([
+        $validated = $request->validate([
             'contexto_empresa' => 'nullable|string',
-            'perfil_ritmo'     => 'nullable|string',
+            'perfil_ritmo'    => 'nullable|in:dinamico,analitico,equilibrado,criativo',
             'valores'          => 'nullable|array',
         ]);
 
-        $company->fill([
-            'contexto_empresa' => $request->contexto_empresa,
-            'perfil_ritmo'     => $request->perfil_ritmo,
-            'valores'          => $request->valores,
-        ]);
-
-        $company->save();
+        $company->update($validated);
 
         return response()->json([
-            'success'  => true,
-            'redirect' => route('profile.edit'),
+            'success' => true,
+            'redirect' => route('editar_empresa')
         ]);
     }
 }

@@ -8,19 +8,14 @@ use App\Http\Controllers\EmpresaController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 
-// ─────────────────────────────────────────────────────────────
-// Página inicial
-// ─────────────────────────────────────────────────────────────
 Route::get('/', function () {
     return view('home');
 });
 
-// ─────────────────────────────────────────────────────────────
-// Rotas protegidas — exigem login e e-mail verificado
-// ─────────────────────────────────────────────────────────────
+// Rotas protegidas
 Route::middleware(['auth', 'verified'])->group(function () {
 
-    // ── Dashboard ─────────────────────────────────────────────
+    // Dashboard
     Route::get('/dashboard', function () {
         $company = Auth::user()->company_id
             ? \App\Models\Company::find(Auth::user()->company_id)
@@ -28,52 +23,39 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return view('dashboard', compact('company'));
     })->name('dashboard');
 
-    // ── Perfil do usuário ──────────────────────────────────────
+    // Perfil do usuário
     Route::get('/profile',    [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile',  [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // ── Configurações (alias para profile/edit) ────────────────
-    // === ROTA DE CONFIGURAÇÕES (edição de usuário + empresa) ===
+    // Configurações (edição de usuário + empresa)
     Route::get('/configurar', function () {
         $user = auth()->user();
-        $company = $user->company ?? null;   // se o relationship for outro nome (ex: empresa), troque aqui
+        $company = $user->company ?? ($user->company_id ? \App\Models\Company::find($user->company_id) : null);
 
         return view('profile.edit', compact('user', 'company'));
-    })->middleware(['auth', 'verified'])->name('configuracoes.index');
-
     })->name('configuracoes.index');
-    // ── Vagas ─────────────────────────────────────────────────
+
+    // Vagas
     Route::prefix('vagas')->name('vagas.')->group(function () {
         Route::get('/',            [VagaController::class, 'index'])->name('index');
         Route::get('/nova-ia',     [VagaController::class, 'nova_ia'])->name('create-ia');
         Route::get('/nova-manual', [VagaController::class, 'nova_vaga'])->name('create-manual');
     });
 
-    // ── Chat — Assistente de RH ───────────────────────────────
-  
-    
-    Route::middleware(['auth', 'verified'])->group(function () {
+    // Chat
+    Route::get('/chat',         [ChatController::class, 'index'])->name('chat.index');
+    Route::post('/chat/send',   [ChatController::class, 'send'])->name('chat.send');
+    Route::post('/chat/clear',  [ChatController::class, 'clear'])->name('chat.clear');
 
-        Route::get('/chat',         [ChatController::class, 'index'])->name('chat.index');
-        Route::post('/chat/send',   [ChatController::class, 'send'])->name('chat.send');
-        Route::post('/chat/clear',  [ChatController::class, 'clear'])->name('chat.clear');
-
-    });
-
-    // ── Onboarding — cadastro inicial da empresa ──────────────
+    // Onboarding
     Route::get('/onboarding',  [OnboardingController::class, 'index'])->name('onboarding');
     Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
 
-    // ── Empresa — edição dos dados ────────────────────────────
-    // GET  /editar_empresa           → exibe o formulário completo
-    // PUT  /editar_empresa           → salva dados cadastrais + logo
-    // PUT  /editar_empresa/cultura   → salva contexto, ritmo e valores
+    // Empresa (edição completa + logo)
     Route::get('/editar_empresa',         [EmpresaController::class, 'edit'])->name('editar_empresa');
     Route::put('/editar_empresa',         [EmpresaController::class, 'updateDados'])->name('editar_empresa.dados');
     Route::put('/editar_empresa/cultura', [EmpresaController::class, 'updateCultura'])->name('editar_empresa.cultura');
+});
 
-// ─────────────────────────────────────────────────────────────
-// Auth — rotas geradas pelo Breeze
-// ─────────────────────────────────────────────────────────────
 require __DIR__.'/auth.php';
