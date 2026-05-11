@@ -4,33 +4,27 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Http;
-use App\Models\User;
-use App\Models\Job; // ajuste para o nome correto do seu model de vagas
+use App\Models\ChatMessage;
+use App\Models\Job;
 
 class ChatController extends Controller
 {
-    /**
-     * Exibe a view do chat.
-     */
     public function index(Request $request)
     {
         $user      = auth()->user();
-        $companyId = $user->company_id;           // ou empresa_id se você usar esse campo
+        $companyId = $user->company_id;
         $jobId     = $request->query('job_id');
 
-        // Busca a vaga (com relacionamentos necessários)
-        $job = $jobId 
-            ? \App\Models\Job::with(['candidates.personalityResults', 'leader'])
+        $job = $jobId
+            ? Job::with(['candidates.personalityResults', 'leader'])
                 ->where('id', $jobId)
                 ->where('company_id', $companyId)
                 ->first()
             : null;
 
-        // Histórico de mensagens
-        $history = \App\Models\ChatMessage::where('company_id', $companyId)
-            ->when($jobId, fn($q) => $q->where('job_id', $jobId))
-            ->when(!$jobId, fn($q) => $q->whereNull('job_id'))
+        $history = ChatMessage::where('company_id', $companyId)
+            ->when($jobId, fn ($q) => $q->where('job_id', $jobId))
+            ->when(!$jobId, fn ($q) => $q->whereNull('job_id'))
             ->orderBy('created_at', 'asc')
             ->take(50)
             ->get();
@@ -38,182 +32,385 @@ class ChatController extends Controller
         return view('chat', compact('history', 'job'));
     }
 
-    /**
-     * Recebe a mensagem do usuário e retorna a resposta da IA (Groq).
-     */
+    public function clear(Request $request)
+    {
+        $user      = Auth::user();
+        $companyId = $user->company_id;
+        $jobId     = $request->input('job_id');
+
+        ChatMessage::where('company_id', $companyId)
+            ->when($jobId, fn ($q) => $q->where('job_id', $jobId))
+            ->when(!$jobId, fn ($q) => $q->whereNull('job_id'))
+            ->delete();
+
+        return response()->json([
+            'ok' => true
+        ]);
+    }
+
     public function send(Request $request)
     {
+        $user      = Auth::user();
+        $companyId = $user->company_id;
+
+        if (!$companyId) {
+            return response()->json([
+                'error' => 'Usuário sem empresa associada.'
+            ], 422);
+        }
+
         $request->validate([
-            'message'  => 'required|string|max:2000',
-            'history'  => 'nullable|array',
+            'message' => 'required|string|max:4000',
+            'job_id'  => 'nullable|integer|exists:jobs,id',
         ]);
 
-        $user    = Auth::user();
-        $message = $request->input('message');
-        $history = $request->input('history', []);
+        $jobId   = $request->input('job_id');
+        $userMsg = trim($request->input('message'));
 
-        // Garante que o histórico é um array limpo
-        $history = $this->normalizeHistory($history);
+        ChatMessage::create([
+            'company_id' => $companyId,
+            'job_id'     => $jobId,
+            'role'       => 'user',
+            'content'    => $userMsg,
+        ]);
 
-        // Monta o system prompt
-        $systemPrompt = $this->buildSystemPrompt($user);
+        $history      = $this->sanitizeHistory($companyId, $jobId);
+        $systemPrompt = $this->buildSystemPrompt($user, $jobId);
 
-        // Monta as mensagens para a API
-        $messages = array_merge(
-            [['role' => 'system', 'content' => $systemPrompt]],
-            $history,
-            [['role' => 'user', 'content' => $message]]
-        );
+        $groqKey = config('services.groq.key') ?: env('GROQ_API_KEY');
 
-        // Chama a API do Groq
-        $response = $this->callGroq($messages);
+        $groqModel = config('services.groq.model')
+            ?: env('GROQ_MODEL', 'llama-3.3-70b-versatile');
 
-        if ($response === null) {
+        if (!$groqKey) {
             return response()->json([
-                'error' => 'Não foi possível obter resposta da IA. Tente novamente.',
+                'error' => 'GROQ_API_KEY não configurada.'
             ], 500);
         }
 
-        return response()->json([
-            'response' => $response,
+        return response()->stream(function () use (
+            $history,
+            $systemPrompt,
+            $companyId,
+            $jobId,
+            $groqKey,
+            $groqModel
+        ) {
+
+            ini_set('output_buffering', 'off');
+            ini_set('zlib.output_compression', 0);
+            ini_set('implicit_flush', 1);
+
+            while (ob_get_level() > 0) {
+                ob_end_flush();
+            }
+
+            ob_implicit_flush(true);
+
+            $fullResponse = '';
+
+            $emit = function ($data) {
+
+                echo "data: " . json_encode($data, JSON_UNESCAPED_UNICODE) . "\n\n";
+
+                @ob_flush();
+                flush();
+            };
+
+            echo ":" . str_repeat(" ", 2048) . "\n";
+            echo "retry: 1000\n\n";
+
+            @ob_flush();
+            flush();
+
+            try {
+
+                $payload = json_encode([
+                    'model' => $groqModel,
+                    'messages' => array_merge(
+                        [
+                            [
+                                'role' => 'system',
+                                'content' => $systemPrompt
+                            ]
+                        ],
+                        $history
+                    ),
+                    'temperature' => 0.7,
+                    'max_completion_tokens' => 1024,
+                    'stream' => true,
+                ], JSON_UNESCAPED_UNICODE);
+
+                $ch = curl_init('https://api.groq.com/openai/v1/chat/completions');
+
+                curl_setopt_array($ch, [
+
+                    CURLOPT_POST => true,
+
+                    CURLOPT_HTTPHEADER => [
+                        'Authorization: Bearer ' . $groqKey,
+                        'Content-Type: application/json',
+                        'Accept: text/event-stream',
+                        'Cache-Control: no-cache',
+                        'Connection: keep-alive',
+                    ],
+
+                    CURLOPT_POSTFIELDS => $payload,
+
+                    CURLOPT_RETURNTRANSFER => false,
+
+                    CURLOPT_TIMEOUT => 120,
+
+                    CURLOPT_SSL_VERIFYPEER => false,
+
+                    CURLOPT_BUFFERSIZE => 128,
+
+                    CURLOPT_TCP_NODELAY => true,
+
+                    CURLOPT_WRITEFUNCTION => function ($ch, $rawChunk) use (&$fullResponse, $emit) {
+
+                        $lines = explode("\n", $rawChunk);
+
+                        foreach ($lines as $line) {
+
+                            $line = trim($line);
+
+                            if (!str_starts_with($line, 'data: ')) {
+                                continue;
+                            }
+
+                            $json = substr($line, 6);
+
+                            if ($json === '[DONE]') {
+                                return strlen($rawChunk);
+                            }
+
+                            $data = json_decode($json, true);
+
+                            if (!$data) {
+                                continue;
+                            }
+
+                            $content = $data['choices'][0]['delta']['content'] ?? '';
+
+                            if ($content !== '') {
+
+                                $fullResponse .= $content;
+
+                                $emit([
+                                    'chunk' => $content,
+                                    'time' => now()->timestamp,
+                                ]);
+                            }
+                        }
+
+                        return strlen($rawChunk);
+                    },
+                ]);
+
+                $response = curl_exec($ch);
+
+                if (curl_errno($ch)) {
+
+                    $emit([
+                        'error' => curl_error($ch)
+                    ]);
+                }
+
+                $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+                if ($status !== 200) {
+
+                    $emit([
+                        'error' => 'Erro HTTP: ' . $status
+                    ]);
+                }
+
+                curl_close($ch);
+
+            } catch (\Throwable $e) {
+
+                $emit([
+                    'error' => $e->getMessage()
+                ]);
+            }
+
+            if (!empty(trim($fullResponse))) {
+
+                ChatMessage::create([
+                    'company_id' => $companyId,
+                    'job_id'     => $jobId,
+                    'role'       => 'assistant',
+                    'content'    => $fullResponse,
+                ]);
+            }
+
+            $emit([
+                'done' => true
+            ]);
+
+            echo "data: [DONE]\n\n";
+
+            @ob_flush();
+            flush();
+
+        }, 200, [
+
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'Connection' => 'keep-alive',
+            'X-Accel-Buffering' => 'no',
         ]);
     }
 
-    /**
-     * Limpa o histórico da conversa (chamado via rota).
-     */
-    public function clear(Request $request)
+    private function sanitizeHistory($companyId, $jobId)
     {
-        // O histórico é mantido no frontend (Alpine.js).
-        // Este endpoint existe para compatibilidade / logs futuros.
-        return response()->json(['status' => 'cleared']);
-    }
+        $raw = ChatMessage::where('company_id', $companyId)
+            ->when($jobId, fn ($q) => $q->where('job_id', $jobId))
+            ->when(!$jobId, fn ($q) => $q->whereNull('job_id'))
+            ->orderBy('created_at', 'desc')
+            ->take(40)
+            ->get()
+            ->reverse()
+            ->values();
 
-    /**
-     * Sanitiza / normaliza o histórico recebido do frontend.
-     * Garante que cada item tem role (string) e content (string).
-     */
-    public function sanitizeHistory(array $history): array
-    {
-        return $this->normalizeHistory($history);
-    }
+        $result = [];
 
-    // -------------------------------------------------------------------------
-    // Métodos privados
-    // -------------------------------------------------------------------------
+        $lastRole = null;
 
-    /**
-     * Constrói o system prompt com base nos dados do usuário/empresa.
-     * Todos os valores são forçados para string para evitar "Array to string conversion".
-     */
-    private function buildSystemPrompt(?User $user): string
-    {
-        $nomeEmpresa  = $this->toString($user?->company?->name ?? $user?->company_name ?? 'sua empresa');
-        $nomeUsuario  = $this->toString($user?->name ?? 'usuário');
-        $cargoUsuario = $this->toString($user?->role ?? $user?->cargo ?? 'colaborador');
+        foreach ($raw as $msg) {
 
-        // Se a empresa tiver um prompt personalizado salvo no banco, usa ele como base
-        $promptPersonalizado = $this->toString($user?->company?->system_prompt ?? '');
+            $role = $msg->role === 'ai'
+                ? 'assistant'
+                : $msg->role;
 
-        if ($promptPersonalizado !== '') {
-            return $promptPersonalizado;
-        }
-
-        return <<<PROMPT
-Você é um assistente de RH inteligente da empresa {$nomeEmpresa}.
-Você está conversando com {$nomeUsuario}, que ocupa o cargo de {$cargoUsuario}.
-
-Seu objetivo é:
-- Ajudar com dúvidas sobre processos seletivos e vagas abertas.
-- Auxiliar na triagem e análise de candidatos.
-- Responder perguntas sobre a empresa e seus processos internos.
-- Ser sempre profissional, claro e objetivo.
-
-Responda sempre em português do Brasil.
-PROMPT;
-    }
-
-    /**
-     * Chama a API do Groq e retorna o texto da resposta.
-     */
-    private function callGroq(array $messages): ?string
-    {
-        $apiKey = config('services.groq.api_key') ?? env('GROQ_API_KEY');
-        $model  = config('services.groq.model', 'llama3-8b-8192');
-
-        if (!$apiKey) {
-            \Log::error('GROQ_API_KEY não configurada.');
-            return null;
-        }
-
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => "Bearer {$apiKey}",
-                'Content-Type'  => 'application/json',
-            ])->post('https://api.groq.com/openai/v1/chat/completions', [
-                'model'       => $model,
-                'messages'    => $messages,
-                'temperature' => 0.7,
-                'max_tokens'  => 1024,
-            ]);
-
-            if ($response->successful()) {
-                return $response->json('choices.0.message.content');
-            }
-
-            \Log::error('Groq API error', [
-                'status' => $response->status(),
-                'body'   => $response->body(),
-            ]);
-
-            return null;
-
-        } catch (\Throwable $e) {
-            \Log::error('Groq API exception: ' . $e->getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * Normaliza o histórico garantindo que role e content sejam sempre strings.
-     */
-    private function normalizeHistory(array $history): array
-    {
-        $clean = [];
-        foreach ($history as $item) {
-            if (!is_array($item)) {
+            if ($role === $lastRole) {
                 continue;
             }
-            $role    = $this->toString($item['role'] ?? 'user');
-            $content = $this->toString($item['content'] ?? '');
 
-            // Aceita apenas roles válidos da OpenAI/Groq
-            if (!in_array($role, ['user', 'assistant', 'system'])) {
-                $role = 'user';
-            }
+            $result[] = [
+                'role' => $role,
+                'content' => (string) $msg->content
+            ];
 
-            if ($content !== '') {
-                $clean[] = ['role' => $role, 'content' => $content];
-            }
+            $lastRole = $role;
         }
-        return $clean;
+
+        return $result;
     }
 
-    /**
-     * Converte qualquer valor para string de forma segura.
-     * Resolve o "Array to string conversion" de uma vez por todas.
-     */
-    private function toString(mixed $value): string
+    private function buildSystemPrompt($user, ?int $jobId): string
     {
-        if (is_array($value)) {
-            return implode(', ', array_map(fn($v) => $this->toString($v), $value));
+        $company = $user->company;
+
+        $lines = [
+            "Você é um assistente especialista em RH da plataforma RHMatch.",
+            "Responda sempre em português do Brasil.",
+            "Seja claro, direto e útil.",
+            "",
+        ];
+
+        if ($company) {
+
+            $lines[] = "## Empresa";
+            $lines[] = "Nome: {$company->razao_social}";
+
+            if ($company->perfil_ritmo) {
+
+                $ritmo = is_array($company->perfil_ritmo)
+                    ? json_encode($company->perfil_ritmo, JSON_UNESCAPED_UNICODE)
+                    : $company->perfil_ritmo;
+
+                $lines[] = "Perfil: {$ritmo}";
+            }
+
+            if ($company->contexto_empresa) {
+
+                $contexto = is_array($company->contexto_empresa)
+                    ? json_encode($company->contexto_empresa, JSON_UNESCAPED_UNICODE)
+                    : $company->contexto_empresa;
+
+                $lines[] = "Contexto: {$contexto}";
+            }
+
+            if ($company->valores) {
+
+                $valores = is_array($company->valores)
+                    ? json_encode($company->valores, JSON_UNESCAPED_UNICODE)
+                    : $company->valores;
+
+                $lines[] = "Valores: {$valores}";
+            }
+
+            $lines[] = "";
         }
-        if (is_object($value)) {
-            return method_exists($value, '__toString') ? (string) $value : json_encode($value);
+
+        if ($jobId) {
+
+            $job = Job::with([
+                'candidates.personalityResults',
+                'leader'
+            ])->find($jobId);
+
+            if ($job) {
+
+                $lines[] = "## Vaga";
+                $lines[] = "Cargo: {$job->titulo}";
+
+                if ($job->descricao) {
+                    $lines[] = "Descrição: {$job->descricao}";
+                }
+
+                if ($job->responsabilidades) {
+                    $lines[] = "Responsabilidades: {$job->responsabilidades}";
+                }
+
+                if ($job->jd_gerada) {
+                    $lines[] = "JD:\n{$job->jd_gerada}";
+                }
+
+                if ($job->perfil_ideal_json) {
+
+                    $perfil = is_array($job->perfil_ideal_json)
+                        ? json_encode($job->perfil_ideal_json, JSON_UNESCAPED_UNICODE)
+                        : $job->perfil_ideal_json;
+
+                    $lines[] = "Perfil ideal: {$perfil}";
+                }
+
+                if ($job->leader) {
+                    $lines[] = "Líder: {$job->leader->nome}";
+                }
+
+                $lines[] = "";
+                $lines[] = "## Candidatos";
+
+                foreach ($job->candidates as $c) {
+
+                    $entry = "- {$c->nome}";
+
+                    if ($c->personalityResults) {
+
+                        $r = $c->personalityResults;
+
+                        if ($r->disc_json) {
+
+                            $entry .= " | DISC: " . (
+                                is_array($r->disc_json)
+                                    ? json_encode($r->disc_json)
+                                    : $r->disc_json
+                            );
+                        }
+                    }
+
+                    $lines[] = $entry;
+                }
+            }
         }
-        if (is_null($value) || is_bool($value)) {
-            return '';
-        }
-        return (string) $value;
+
+        $lines[] = "";
+        $lines[] = "Responda usando o contexto acima.";
+
+        return implode("\n", $lines);
     }
 }

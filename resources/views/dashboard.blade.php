@@ -214,40 +214,7 @@
 
     </div>
 
-    {{-- Atividade recente --}}
-    <div class="card">
-        <div class="card-header">
-            <span class="card-title">Atividade recente</span>
-        </div>
-        <div class="atv-item">
-            <div class="atv-track"><div class="atv-dot" style="background:#1D9E75"></div><div class="atv-line"></div></div>
-            <div class="atv-body">
-                <div class="atv-text"><strong>Ana Souza</strong> concluiu os 3 testes psicométricos · Gerente de produto</div>
-                <div class="atv-time">Há 23 minutos</div>
-            </div>
-        </div>
-        <div class="atv-item">
-            <div class="atv-track"><div class="atv-dot" style="background:#185FA5"></div><div class="atv-line"></div></div>
-            <div class="atv-body">
-                <div class="atv-text">Relatório de match gerado para <strong>Gerente de produto</strong> — 7 candidatos ranqueados</div>
-                <div class="atv-time">Há 1 hora</div>
-            </div>
-        </div>
-        <div class="atv-item">
-            <div class="atv-track"><div class="atv-dot" style="background:#BA7517"></div><div class="atv-line"></div></div>
-            <div class="atv-body">
-                <div class="atv-text">Link de testes enviado para <strong>Rafael Fernandes</strong> · expira em 12h</div>
-                <div class="atv-time">Há 3 horas</div>
-            </div>
-        </div>
-        <div class="atv-item">
-            <div class="atv-track"><div class="atv-dot" style="background:#185FA5"></div></div>
-            <div class="atv-body">
-                <div class="atv-text">Vaga <strong>Dev backend sênior</strong> criada com JD gerada por IA</div>
-                <div class="atv-time">Hoje, 09:14</div>
-            </div>
-        </div>
-    </div>
+    
 
     @push('scripts')
     <script>
