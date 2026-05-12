@@ -2,7 +2,7 @@
 
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\JobController;
+use App\Http\Controllers\VagaController;
 use App\Http\Controllers\CandidateController;
 use App\Http\Controllers\MatchController;
 use App\Http\Controllers\GroqController;
@@ -105,34 +105,34 @@ Route::middleware([
     // ------------------------------------------------------
     Route::prefix('vagas')->name('jobs.')->group(function () {
 
-        Route::get('/', [JobController::class, 'index'])
+        Route::get('/', [VagaController::class, 'index'])
             ->name('index');
 
-        Route::get('/criar', [JobController::class, 'create'])
+        Route::get('/criar', [VagaController::class, 'create'])
             ->name('create');
 
-        Route::get('/criar-ia', [JobController::class, 'createIa'])
+        Route::get('/criar-ia', [VagaController::class, 'createIa'])
             ->name('create-ia');
 
-        Route::post('/', [JobController::class, 'store'])
+        Route::post('/', [VagaController::class, 'store'])
             ->name('store');
 
-        Route::get('/{job}', [JobController::class, 'show'])
+        Route::get('/{job}', [VagaController::class, 'show'])
             ->name('show');
 
-        Route::get('/{job}/editar', [JobController::class, 'edit'])
+        Route::get('/{job}/editar', [VagaController::class, 'edit'])
             ->name('edit');
 
-        Route::put('/{job}', [JobController::class, 'update'])
+        Route::put('/{job}', [VagaController::class, 'update'])
             ->name('update');
 
-        Route::delete('/{job}', [JobController::class, 'destroy'])
+        Route::delete('/{job}', [VagaController::class, 'destroy'])
             ->name('destroy');
 
-        Route::patch('/{job}/status', [JobController::class, 'toggleStatus'])
+        Route::patch('/{job}/status', [VagaController::class, 'toggleStatus'])
             ->name('toggle-status');
 
-        Route::get('/{job}/candidatos', [JobController::class, 'candidatos'])
+        Route::get('/{job}/candidatos', [VagaController::class, 'candidatos'])
             ->name('candidatos');
 
     });
