@@ -237,19 +237,17 @@ class OnboardingController extends Controller
     // =======================================================
     // Helper: Pega a empresa do usuário logado ou cria uma nova
     // =======================================================
-    // CORREÇÃO DO BUG: $user->company usa cache do Eloquent e pode retornar null
-    // mesmo quando o registro já existe no banco (ex: após redirect).
-    // Solução: usar firstOrCreate com query direta, que é atômica e thread-safe.
+    // FIX DEFINITIVO: Sempre inclui 'user_id' explicitamente na criação
+    // para evitar o erro 1364 'Field user_id doesn't have a default value'
     // =======================================================
     private function getOrCreateCompany(): Company
     {
         $user = Auth::user();
 
         return Company::firstOrCreate(
-            // Condição de busca — nunca vai duplicar por user_id
             ['user_id' => $user->id],
-            // Valores usados APENAS na criação (ignorados se já existir)
             [
+                'user_id'              => $user->id,           // ← EXPLÍCITO (garante que vai no INSERT)
                 'razao_social'         => 'Empresa Temporária ' . $user->id,
                 'cnpj'                 => 'TEMP-' . $user->id,
                 'onboarding_step'      => 0,
