@@ -1,88 +1,217 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\VagaController;
-use App\Http\Controllers\ChatController;
 use App\Http\Controllers\OnboardingController;
-use App\Http\Controllers\EmpresaController;
-use App\Http\Controllers\OrganogramaController;
-use App\Http\Controllers\TesteController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\JobController;
+use App\Http\Controllers\CandidateController;
+use App\Http\Controllers\MatchController;
+use App\Http\Controllers\GroqController;
+use App\Http\Controllers\WhiteLabelController;
+use App\Http\Middleware\EnsureOnboardingComplete;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Auth;
 
-// Página inicial (marketing)
+// ==========================================================
+// HOME
+// ==========================================================
 Route::get('/', function () {
+
+    if (auth()->check()) {
+        $company = auth()->user()->company;
+
+        // Se não tem empresa ou não concluiu onboarding, manda pro onboarding
+        if (! $company || ! $company->onboarding_completed) {
+            $step = $company ? max(1, $company->onboarding_step) : 1;
+            return redirect()->route('onboarding.step', $step);
+        }
+
+        return redirect()->route('dashboard');
+    }
+
     return view('home');
-});
 
-// Portal white-label de testes psicométricos — acesso público via token, sem login
-Route::prefix('teste')->name('teste.')->group(function () {
-    Route::get('/{token}',            [TesteController::class, 'show'])->name('show');
-    Route::post('/{token}/disc',      [TesteController::class, 'salvarDisc'])->name('disc');
-    Route::post('/{token}/enneagram', [TesteController::class, 'salvarEnneagram'])->name('enneagram');
-    Route::post('/{token}/mbti',      [TesteController::class, 'salvarMbti'])->name('mbti');
-    Route::get('/{token}/resultado',  [TesteController::class, 'resultado'])->name('resultado');
-});
+})->name('home');
 
-// Rotas protegidas — precisa estar logado e com e-mail verificado
+// ==========================================================
+// ONBOARDING — fluxo inicial da empresa
+// ==========================================================
 Route::middleware(['auth', 'verified'])->group(function () {
 
-    // Dashboard
-    Route::get('/dashboard', function () {
-        $company = Auth::user()->company_id
-            ? \App\Models\Company::find(Auth::user()->company_id)
-            : null;
-        return view('dashboard', compact('company'));
-    })->name('dashboard');
+    Route::get('/onboarding', [OnboardingController::class, 'index'])
+        ->name('onboarding');
 
-    // Perfil do usuário
-    Route::get('/profile',    [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile',  [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::get('/onboarding/step/{step}', [OnboardingController::class, 'show'])
+        ->whereNumber('step')
+        ->name('onboarding.step');
 
-    // Configurações (edição de usuário + empresa)
-    Route::get('/configurar', function () {
-        $user    = auth()->user();
-        $company = $user->company ?? ($user->company_id ? \App\Models\Company::find($user->company_id) : null);
-        return view('profile.edit', compact('user', 'company'));
-    })->name('configuracoes.index');
+    Route::post('/onboarding/step/1', [OnboardingController::class, 'saveStep1'])
+        ->name('onboarding.save.step1');
 
-    // Vagas
-    Route::prefix('vagas')->name('vagas.')->group(function () {
-        Route::get('/',        [VagaController::class, 'index'])->name('index');
-        Route::get('/nova-ia',     [VagaController::class, 'nova_ia'])->name('create-ia');
-        Route::get('/nova-manual', [VagaController::class, 'nova_vaga'])->name('create-manual');
-        Route::get('/{id}',    [VagaController::class, 'show'])->name('show');
-        Route::post('/',       [VagaController::class, 'store'])->name('store');
-        Route::post('/gerar-jd', [VagaController::class, 'gerarJD'])->name('gerar-jd');
-        Route::post('/{id}/candidatos', [VagaController::class, 'adicionarCandidato'])->name('candidatos.store');
-        Route::post('/{id}/match', [VagaController::class, 'gerarMatch'])->name('match');
-        Route::post('/{vagaId}/candidatos/{candidateId}/link-teste',
-                    [VagaController::class, 'gerarLinkTeste'])->name('candidatos.link-teste');
-    });
+    Route::post('/onboarding/step/2', [OnboardingController::class, 'saveStep2'])
+        ->name('onboarding.save.step2');
 
-    // Organograma
-    Route::prefix('organograma')->name('organograma.')->group(function () {
-        Route::get('/',           [OrganogramaController::class, 'index'])->name('index');
-        Route::post('/nodes',     [OrganogramaController::class, 'store'])->name('store');
-        Route::put('/nodes/{id}', [OrganogramaController::class, 'update'])->name('update');
-        Route::delete('/nodes/{id}', [OrganogramaController::class, 'destroy'])->name('destroy');
-        Route::get('/data',       [OrganogramaController::class, 'data'])->name('data');
-    });
+    Route::post('/onboarding/step/3', [OnboardingController::class, 'saveStep3'])
+        ->name('onboarding.save.step3');
 
-    // Chat assistente de RH
-    Route::get('/chat',        [ChatController::class, 'index'])->name('chat.index');
-    Route::post('/chat/send',  [ChatController::class, 'send'])->name('chat.send');
-    Route::post('/chat/clear', [ChatController::class, 'clear'])->name('chat.clear');
+    Route::post('/onboarding/step/4', [OnboardingController::class, 'saveStep4'])
+        ->name('onboarding.save.step4');
 
-    // Onboarding
-    Route::get('/onboarding',  [OnboardingController::class, 'index'])->name('onboarding');
-    Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
+    // Save genérico
+    Route::post('/onboarding/step/{step}', function (int $step, Request $request) {
 
-    // Empresa (edição após onboarding)
-    Route::get('/editar_empresa',         [EmpresaController::class, 'edit'])->name('editar_empresa');
-    Route::put('/editar_empresa',         [EmpresaController::class, 'updateDados'])->name('editar_empresa.dados');
-    Route::put('/editar_empresa/cultura', [EmpresaController::class, 'updateCultura'])->name('editar_empresa.cultura');
+        $controller = app(OnboardingController::class);
+
+        return match ($step) {
+            1 => $controller->saveStep1($request),
+            2 => $controller->saveStep2($request),
+            3 => $controller->saveStep3($request),
+            4 => $controller->saveStep4($request),
+            default => redirect()->route('onboarding.step', ['step' => 1]),
+        };
+
+    })->whereNumber('step')->name('onboarding.save');
+
 });
 
+// ==========================================================
+// ÁREA LOGADA
+// ==========================================================
+Route::middleware([
+    'auth',
+    'verified',
+    EnsureOnboardingComplete::class
+])->group(function () {
+
+    // ------------------------------------------------------
+    // DASHBOARD
+    // ------------------------------------------------------
+    Route::get('/dashboard', [DashboardController::class, 'index'])
+        ->name('dashboard');
+
+    // ------------------------------------------------------
+    // CONFIGURAÇÕES EMPRESA
+    // ------------------------------------------------------
+    Route::get('/empresa/configuracoes', [DashboardController::class, 'configuracoes'])
+        ->name('empresa.configuracoes');
+
+    Route::put('/empresa/configuracoes', [DashboardController::class, 'atualizarConfiguracoes'])
+        ->name('empresa.configuracoes.update');
+
+    Route::post('/empresa/logo', [DashboardController::class, 'atualizarLogo'])
+        ->name('empresa.logo.update');
+
+    // ------------------------------------------------------
+    // VAGAS
+    // ------------------------------------------------------
+    Route::prefix('vagas')->name('jobs.')->group(function () {
+
+        Route::get('/', [JobController::class, 'index'])
+            ->name('index');
+
+        Route::get('/criar', [JobController::class, 'create'])
+            ->name('create');
+
+        Route::post('/', [JobController::class, 'store'])
+            ->name('store');
+
+        Route::get('/{job}', [JobController::class, 'show'])
+            ->name('show');
+
+        Route::get('/{job}/editar', [JobController::class, 'edit'])
+            ->name('edit');
+
+        Route::put('/{job}', [JobController::class, 'update'])
+            ->name('update');
+
+        Route::delete('/{job}', [JobController::class, 'destroy'])
+            ->name('destroy');
+
+        Route::patch('/{job}/status', [JobController::class, 'toggleStatus'])
+            ->name('toggle-status');
+
+        Route::get('/{job}/candidatos', [JobController::class, 'candidatos'])
+            ->name('candidatos');
+
+    });
+
+    // ------------------------------------------------------
+    // CANDIDATOS
+    // ------------------------------------------------------
+    Route::prefix('candidatos')->name('candidates.')->group(function () {
+
+        Route::get('/', [CandidateController::class, 'index'])
+            ->name('index');
+
+        Route::get('/{candidate}', [CandidateController::class, 'show'])
+            ->name('show');
+
+        Route::patch('/{candidate}/status', [CandidateController::class, 'updateStatus'])
+            ->name('status');
+
+    });
+
+    // ------------------------------------------------------
+    // MATCH IA
+    // ------------------------------------------------------
+    Route::prefix('match')->name('match.')->group(function () {
+
+        Route::post('/{candidate}/{job}', [MatchController::class, 'analisar'])
+            ->name('analisar');
+
+        Route::get('/{candidate}/{job}', [MatchController::class, 'resultado'])
+            ->name('resultado');
+
+    });
+
+    // ------------------------------------------------------
+    // IA / GROQ
+    // ------------------------------------------------------
+    Route::prefix('ia')->name('ia.')->group(function () {
+
+        Route::get('/chat', [GroqController::class, 'chat'])
+            ->name('chat');
+
+        Route::post('/chat', [GroqController::class, 'enviarMensagem'])
+            ->name('chat.send');
+
+        Route::post('/job-description', [GroqController::class, 'gerarJobDescription'])
+            ->name('job-description');
+
+        Route::post('/perguntas/{job}', [GroqController::class, 'gerarPerguntas'])
+            ->name('perguntas');
+
+    });
+
+});
+
+// ==========================================================
+// WHITE LABEL
+// ==========================================================
+Route::prefix('portal/{subdomain}')
+    ->name('whitelabel.')
+    ->group(function () {
+
+        Route::get('/', [WhiteLabelController::class, 'index'])
+            ->name('index');
+
+        Route::get('/vagas/{job}', [WhiteLabelController::class, 'vaga'])
+            ->name('vaga');
+
+        Route::get('/vagas/{job}/candidatar', [WhiteLabelController::class, 'formCandidatura'])
+            ->name('candidatura.form');
+
+        Route::post('/vagas/{job}/candidatar', [WhiteLabelController::class, 'candidatar'])
+            ->name('candidatura.store');
+
+        Route::get('/vagas/{job}/psicometrico', [WhiteLabelController::class, 'psicometrico'])
+            ->name('psicometrico');
+
+        Route::post('/vagas/{job}/psicometrico', [WhiteLabelController::class, 'salvarRespostas'])
+            ->name('psicometrico.save');
+
+    });
+
+// ==========================================================
+// AUTH ROUTES (BREEZE)
+// ==========================================================
 require __DIR__.'/auth.php';

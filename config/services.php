@@ -1,44 +1,31 @@
 <?php
 
-// Adicione esta entrada ao seu config/services.php existente:
-//
-// return [
-//     // ... suas outras entradas (postmark, ses, slack) ...
-//
-//     'groq' => [
-//         'key' => env('GROQ_API_KEY'),
-//     ],
-// ];
-//
-// Seu .env já possui GROQ_API_KEY=gsk_... então basta adicionar a entrada acima.
-// Depois rode: php artisan config:clear
+// Adicione isso no seu config/services.php existente
+// Se já tem esse arquivo, só adicione a key 'groq' no array
 
 return [
 
-    'postmark' => [
-        'token' => env('POSTMARK_TOKEN'),
-    ],
+    // ... suas outras configurações de serviços ...
 
-    'ses' => [
-        'key'    => env('AWS_ACCESS_KEY_ID'),
-        'secret' => env('AWS_SECRET_ACCESS_KEY'),
-        'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
-    ],
+    /*
+    |--------------------------------------------------------------------------
+    | Groq AI — chave da API de IA
+    | Pega do .env: GROQ_API_KEY=gsk_xxxxxxx
+    | Cadastre em: https://console.groq.com/keys
+    |--------------------------------------------------------------------------
+    */
     'groq' => [
-        'key'      => env('GROQ_API_KEY'),
-        'model'    => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+        'api_key' => env('GROQ_API_KEY'),
     ],
 
-    'resend' => [
-        'key' => env('RESEND_KEY'),
+    /*
+    |--------------------------------------------------------------------------
+    | ViaCEP — não precisa de chave, é gratuito
+    | Uso na etapa 1 do onboarding pra preencher endereço automaticamente
+    |--------------------------------------------------------------------------
+    */
+    'viacep' => [
+        'url' => 'https://viacep.com.br/ws',
     ],
-
-    'slack' => [
-        'notifications' => [
-            'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
-            'channel'              => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
-        ],
-    ],
-
 
 ];

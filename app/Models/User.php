@@ -13,33 +13,18 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'name',
         'email',
         'password',
-        'company_id',  // ← adiciona isso
+        // REMOVIDO: 'company_id' — a FK fica em companies.user_id, não aqui
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -47,8 +32,11 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    // CORRIGIDO: era belongsTo (invertido), agora é hasOne
+    // A FK companies.user_id aponta pro usuário dono da empresa
     public function company()
     {
-        return $this->belongsTo(Company::class, 'company_id');
+        return $this->hasOne(Company::class, 'user_id');
     }
 }
