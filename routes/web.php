@@ -111,6 +111,9 @@ Route::middleware([
         Route::get('/criar', [JobController::class, 'create'])
             ->name('create');
 
+        Route::get('/criar-ia', [JobController::class, 'createIa'])
+            ->name('create-ia');
+
         Route::post('/', [JobController::class, 'store'])
             ->name('store');
 

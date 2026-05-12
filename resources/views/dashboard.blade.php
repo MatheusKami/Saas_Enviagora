@@ -1,6 +1,7 @@
 <x-app-layout>
     {{-- Redireciona para onboarding se não tiver empresa cadastrada --}}
-    @if(!Auth::user()->company_id)
+    {{-- CORRIGIDO: era company_id (coluna que não existe no users), agora usa o relacionamento --}}
+    @if(!Auth::user()->company)
         <script>window.location.href = '/onboarding';</script>
     @endif
 
@@ -10,7 +11,8 @@
             <h1>Dashboard</h1>
             <p id="greeting-line">Carregando...</p>
         </div>
-        <a href="{{ route('vagas.create-ia') }}" class="btn btn-primary">
+        {{-- CORRIGIDO: era route('vagas.create-ia'), prefixo correto é 'jobs.' --}}
+        <a href="{{ route('jobs.create-ia') }}" class="btn btn-primary">
             <i class="ti ti-plus" style="font-size:15px"></i> Nova vaga
         </a>
     </div>
@@ -22,8 +24,8 @@
 
             {{-- Logo ou iniciais --}}
             <div style="flex-shrink:0">
-                @if($company->logo_url)
-                    <img src="{{ $company->logo_url }}" alt="Logo"
+                @if($company->logo_path)
+                    <img src="{{ Storage::url($company->logo_path) }}" alt="Logo"
                          style="height:56px;width:56px;object-fit:contain;border-radius:10px;border:1px solid var(--gray-200);padding:4px;background:#fff">
                 @else
                     <div style="height:56px;width:56px;border-radius:10px;background:var(--blue-50,#ddeeff);
@@ -39,63 +41,66 @@
                 <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
                     <h2 style="font-size:1.1rem;font-weight:700;margin:0">{{ $company->razao_social }}</h2>
 
-                    {{-- Badge de perfil/ritmo --}}
-                    @if($company->perfil_ritmo)
+                    {{-- Badge de ritmo de trabalho --}}
+                    @if($company->ritmo_trabalho)
                         @php
                             $badges = [
-                                'dinamico'    => ['label' => 'Dinâmico / Ágil',         'class' => 'badge-blue'],
-                                'analitico'   => ['label' => 'Analítico / Estruturado',  'class' => 'badge-gray'],
-                                'equilibrado' => ['label' => 'Equilibrado',              'class' => 'badge-green'],
-                                'criativo'    => ['label' => 'Criativo / Inovador',      'class' => 'badge-amber'],
+                                'startup-acelerada'   => ['label' => 'Startup acelerada',    'class' => 'badge-blue'],
+                                'crescimento-rapido'  => ['label' => 'Crescimento rápido',   'class' => 'badge-green'],
+                                'corporativo-estavel' => ['label' => 'Corporativo estável',  'class' => 'badge-gray'],
+                                'conservador'         => ['label' => 'Conservador',          'class' => 'badge-gray'],
+                                'sazonal'             => ['label' => 'Sazonal',              'class' => 'badge-amber'],
                             ];
-                            $badge = $badges[$company->perfil_ritmo] ?? ['label' => $company->perfil_ritmo, 'class' => 'badge-gray'];
+                            $badge = $badges[$company->ritmo_trabalho] ?? ['label' => $company->ritmo_trabalho, 'class' => 'badge-gray'];
                         @endphp
                         <span class="badge {{ $badge['class'] }}">{{ $badge['label'] }}</span>
                     @endif
                 </div>
 
-                {{-- Metadados: CNPJ, site, endereço --}}
+                {{-- Metadados: CNPJ, site, cidade --}}
                 <div style="display:flex;flex-wrap:wrap;gap:.5rem 1.25rem;margin-top:.4rem">
-                    @if($company->cnpj)
+                    @if($company->cnpj && !str_starts_with($company->cnpj, 'TEMP-'))
                         <span style="font-size:.8rem;color:var(--gray-500)">
                             <i class="ti ti-id-badge-2"></i> {{ $company->cnpj }}
                         </span>
                     @endif
-                    @if($company->url_empresa)
-                        <a href="{{ $company->url_empresa }}" target="_blank"
+                    @if($company->website)
+                        <a href="{{ $company->website }}" target="_blank"
                            style="font-size:.8rem;color:var(--blue-600,#185FA5);text-decoration:none">
-                            <i class="ti ti-world"></i> {{ parse_url($company->url_empresa, PHP_URL_HOST) }}
+                            <i class="ti ti-world"></i> {{ parse_url($company->website, PHP_URL_HOST) }}
                         </a>
                     @endif
-                    @if($company->endereco_completo)
+                    @if($company->cidade && $company->estado)
                         <span style="font-size:.8rem;color:var(--gray-500)">
-                            <i class="ti ti-map-pin"></i> {{ $company->endereco_completo }}
+                            <i class="ti ti-map-pin"></i> {{ $company->cidade }}/{{ $company->estado }}
                         </span>
                     @endif
                 </div>
 
-                {{-- Contexto --}}
-                @if($company->contexto_empresa)
+                {{-- Contexto/cultura --}}
+                @if($company->cultura_empresa)
                     <p style="font-size:.82rem;color:var(--gray-600);margin:.6rem 0 0;line-height:1.5">
-                        {{ Str::limit($company->contexto_empresa, 160) }}
+                        {{ Str::limit($company->cultura_empresa, 160) }}
                     </p>
                 @endif
 
                 {{-- Valores --}}
-                @if(!empty($company->valores))
+                @if($company->valores_empresa)
                     <div style="display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.6rem">
-                        @foreach($company->valores as $valor)
+                        @foreach(explode("\n", $company->valores_empresa) as $valor)
+                            @if(trim($valor))
                             <span style="font-size:.75rem;padding:.2rem .55rem;border-radius:99px;
                                          background:var(--gray-100,#f3f4f6);color:var(--gray-600)">
-                                {{ $valor }}
+                                {{ trim($valor) }}
                             </span>
+                            @endif
                         @endforeach
                     </div>
                 @endif
             </div>
 
-            {{-- Link editar --}}
-            <a href="{{ route('editar_empresa') }}"
+            {{-- CORRIGIDO: era route('editar_empresa') que não existe --}}
+            <a href="{{ route('empresa.configuracoes') }}"
                style="flex-shrink:0;font-size:.8rem;color:var(--gray-400);text-decoration:none;
                       display:flex;align-items:center;gap:.25rem"
                title="Editar empresa">
@@ -106,7 +111,7 @@
     @endif
 
     {{-- CTA Banner --}}
-    <a href="{{ route('vagas.create-ia') }}" class="cta-banner">
+    <a href="{{ route('jobs.create-ia') }}" class="cta-banner">
         <div class="cta-left">
             <div class="cta-icon"><i class="ti ti-sparkles"></i></div>
             <div>
@@ -145,13 +150,7 @@
 
     {{-- Vagas + Candidatos --}}
     <div class="two-col">
-
-        
-        
-
     </div>
-
-    
 
     @push('scripts')
     <script>

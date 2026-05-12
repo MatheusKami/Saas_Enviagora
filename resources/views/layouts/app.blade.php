@@ -7,25 +7,34 @@
 
     <title>{{ config('app.name', 'RHMatch') }}</title>
 
-    <!-- Fonts -->
+    {{-- Fonts --}}
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700,800&display=swap" rel="stylesheet" />
 
-    <!-- Tabler Icons -->
+    {{-- Tabler Icons --}}
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
-    <link rel="stylesheet" href="css/style.css">
 
-    <!-- Vite (já inclui o Alpine via app.js) -->
+    {{-- CSS --}}
+    <link rel="stylesheet" href="{{ asset('css/style.css') }}">
+
+    {{-- Vite --}}
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
     @stack('styles')
 </head>
+
 <body>
 
-    {{-- ── Topbar global ── --}}
+    {{-- ===================================================== --}}
+    {{-- TOPBAR --}}
+    {{-- ===================================================== --}}
     <header class="dash-topbar">
+
         <a href="{{ route('dashboard') }}" class="topbar-brand">
-            <div class="topbar-brand-icon"><i class="ti ti-users"></i></div>
+            <div class="topbar-brand-icon">
+                <i class="ti ti-users"></i>
+            </div>
+
             RHMatch
         </a>
 
@@ -37,13 +46,14 @@
                 <span class="notif-dot"></span>
             </a>
 
-            {{-- Avatar + dropdown — controlado pelo Alpine.js --}}
+            {{-- Avatar --}}
             <div
                 x-data="{ open: false }"
                 @click.outside="open = false"
                 @keydown.escape.window="open = false"
                 style="position:relative"
             >
+
                 {{-- Botão avatar --}}
                 <div
                     class="topbar-avatar"
@@ -68,89 +78,185 @@
                     class="topbar-dropdown"
                     style="transform-origin:top right"
                 >
-                    {{-- Cabeçalho com nome e e-mail --}}
+
+                    {{-- Dados usuário --}}
                     <div class="topbar-dropdown-header">
-                        <div class="dd-name">{{ Auth::user()->name }}</div>
-                        <div class="dd-email">{{ Auth::user()->email }}</div>
+                        <div class="dd-name">
+                            {{ Auth::user()->name }}
+                        </div>
+
+                        <div class="dd-email">
+                            {{ Auth::user()->email }}
+                        </div>
                     </div>
 
-                    <a href="{{ route('profile.edit') }}" @click="open = false">
-                        <i class="ti ti-user"></i> Meu perfil
+                    {{-- Meu perfil --}}
+                    <a
+                        href="{{ route('empresa.configuracoes') }}"
+                        @click="open = false"
+                    >
+                        <i class="ti ti-user"></i>
+                        Meu perfil
                     </a>
-                    <a href="#" @click="open = false">
-                        <i class="ti ti-settings"></i> Configurações
+
+                    {{-- Configurações --}}
+                    <a
+                        href="{{ route('empresa.configuracoes') }}"
+                        @click="open = false"
+                    >
+                        <i class="ti ti-settings"></i>
+                        Configurações
                     </a>
 
                     <div class="topbar-dropdown-divider"></div>
 
+                    {{-- Logout --}}
                     <a
                         href="{{ route('logout') }}"
                         style="color:var(--red)"
-                        @click.prevent="open = false; $nextTick(() => document.getElementById('logout-form-top').submit())"
+                        @click.prevent="
+                            open = false;
+                            $nextTick(() => document.getElementById('logout-form-top').submit())
+                        "
                     >
-                        <i class="ti ti-logout"></i> Sair
+                        <i class="ti ti-logout"></i>
+                        Sair
                     </a>
+
                 </div>
             </div>
 
         </div>
 
-        <form id="logout-form-top" action="{{ route('logout') }}" method="POST" style="display:none">
+        {{-- Form logout top --}}
+        <form
+            id="logout-form-top"
+            action="{{ route('logout') }}"
+            method="POST"
+            style="display:none"
+        >
             @csrf
         </form>
+
     </header>
 
+    {{-- ===================================================== --}}
+    {{-- LAYOUT --}}
+    {{-- ===================================================== --}}
     <div class="dash-layout">
 
-        {{-- ── Sidebar global ── --}}
+        {{-- ================================================= --}}
+        {{-- SIDEBAR --}}
+        {{-- ================================================= --}}
         <aside class="dash-sidebar">
-            <span class="sidebar-section">Principal</span>
-            <a href="{{ route('dashboard') }}"
-               class="sidebar-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
-                <i class="ti ti-layout-dashboard"></i> Dashboard
-            </a>
-            <a href="{{ route('vagas.index') }}"
-               class="sidebar-link {{ request()->routeIs('vagas.*') ? 'active' : '' }}">
-                <i class="ti ti-briefcase"></i> Vagas
-                <span class="sidebar-badge">4</span>
-            </a>
-            <a href="#"
-               class="sidebar-link {{ request()->routeIs('candidatos.*') ? 'active' : '' }}">
-                <i class="ti ti-users"></i> Candidatos
+
+            <span class="sidebar-section">
+                Principal
+            </span>
+
+            {{-- Dashboard --}}
+            <a
+                href="{{ route('dashboard') }}"
+                class="sidebar-link {{ request()->routeIs('dashboard') ? 'active' : '' }}"
+            >
+                <i class="ti ti-layout-dashboard"></i>
+                Dashboard
             </a>
 
-            <span class="sidebar-section">Empresa</span>
-            <a href="#" class="sidebar-link {{ request()->routeIs('organograma.*') ? 'active' : '' }}">
-                <i class="ti ti-sitemap"></i> Organograma
+            {{-- Vagas --}}
+            <a
+                href="{{ route('jobs.index') }}"
+                class="sidebar-link {{ request()->routeIs('jobs.*') ? 'active' : '' }}"
+            >
+                <i class="ti ti-briefcase"></i>
+                Vagas
+
+                <span class="sidebar-badge">
+                    4
+                </span>
             </a>
-            <a href="#" class="sidebar-link {{ request()->routeIs('testes.*') ? 'active' : '' }}">
-                <i class="ti ti-brain"></i> Testes
+
+            {{-- Candidatos --}}
+            <a
+                href="{{ route('candidates.index') }}"
+                class="sidebar-link {{ request()->routeIs('candidates.*') ? 'active' : '' }}"
+            >
+                <i class="ti ti-users"></i>
+                Candidatos
             </a>
-            <a href="configurar" class="sidebar-link {{ request()->routeIs('configuracoes.*') ? 'active' : '' }}">
-                <i class="ti ti-settings"></i> Configurações
+
+            <span class="sidebar-section">
+                Empresa
+            </span>
+
+            {{-- Organograma --}}
+            <a
+                href="#"
+                class="sidebar-link"
+            >
+                <i class="ti ti-sitemap"></i>
+                Organograma
+            </a>
+
+            {{-- Testes --}}
+            <a
+                href="#"
+                class="sidebar-link"
+            >
+                <i class="ti ti-brain"></i>
+                Testes
+            </a>
+
+            {{-- Configurações --}}
+            <a
+                href="{{ route('empresa.configuracoes') }}"
+                class="sidebar-link {{ request()->routeIs('empresa.configuracoes*') ? 'active' : '' }}"
+            >
+                <i class="ti ti-settings"></i>
+                Configurações
             </a>
 
             <div class="sidebar-spacer"></div>
 
-            <a href="{{ route('logout') }}"
-               onclick="event.preventDefault(); document.getElementById('logout-form-side').submit();"
-               class="sidebar-link" style="color:var(--red)">
-                <i class="ti ti-logout"></i> Sair
+            {{-- Logout --}}
+            <a
+                href="{{ route('logout') }}"
+                onclick="event.preventDefault(); document.getElementById('logout-form-side').submit();"
+                class="sidebar-link"
+                style="color:var(--red)"
+            >
+                <i class="ti ti-logout"></i>
+                Sair
             </a>
-            <form id="logout-form-side" action="{{ route('logout') }}" method="POST" style="display:none">
+
+            <form
+                id="logout-form-side"
+                action="{{ route('logout') }}"
+                method="POST"
+                style="display:none"
+            >
                 @csrf
             </form>
+
         </aside>
 
-        {{-- ── Slot de conteúdo ── --}}
+        {{-- ================================================= --}}
+        {{-- CONTEÚDO --}}
+        {{-- ================================================= --}}
         <main class="dash-content">
             {{ $slot }}
         </main>
 
     </div>
 
-    {{-- Chat FAB global --}}
-    <a href="/chat" class="chat-fab" title="Assistente de RH">
+    {{-- ===================================================== --}}
+    {{-- CHAT FAB --}}
+    {{-- ===================================================== --}}
+    <a
+        href="{{ route('ia.chat') }}"
+        class="chat-fab"
+        title="Assistente de RH"
+    >
         <i class="ti ti-message"></i>
     </a>
 
